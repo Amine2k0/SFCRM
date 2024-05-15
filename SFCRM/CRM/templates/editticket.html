@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="vh-100" style="background-color: #2E2E2E;">
+    <div class="container py-5 h-100">
+      <div class="row d-flex justify-content-center align-items-center h-100">
+        <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+          <div class="card shadow-2-strong" style="border-radius: 1rem;">
+            <div class="card-body p-5 text-center">
+  
+              <h3 class="mb-5">Sign in</h3>
+      
+      
+              <form method="POST">
+                {% csrf_token %}
+                <div data-mdb-input-init class="form-outline mb-4">
+                    <input type="text" id="typeEmailX-2" class="form-control form-control-lg" name="Subject"  value="{{ticket.Subject}}"/>
+                    <label class="form-label" >Subject</label>
+                  </div>
+      
+                  <div data-mdb-input-init class="form-outline mb-4">
+                    <label for="Status">Choose a Status:</label>
+                    <br>
+                      <select class="form-select" id="Status" name="Status" style="background-color: #2E2E2E;">
+                        <option value="Open">Open</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Closed">Closed</option>
+                        <option value="solved">Solved</option>
+                      </select>
+                  </div>
+                  <button data-mdb-button-init data-mdb-ripple-init class="btn btn-primary btn-lg btn-block" style="padding-right: 20px;" type="submit" value="submit">Edit</button> 
+
+              
+            </form>
+              
+  
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+{% endblock %}
