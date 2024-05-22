@@ -51,7 +51,13 @@
                     <td>{{a.email}}</td>
                     <td>{{a.adress}}</td>
                     <td>{{a.age}}</td>
-                    <td>{{a.Dispo}}</td>
+                    <td><div class="d-flex align-items-center">
+                      {% if a.Dispo %}
+                       <i class="bi bi-circle-fill" style = "color:green;"></i>
+                       {% else %}
+                       <i class="bi bi-circle-fill" style = "color:red;"></i>
+                       {% endif %}
+                     </div></td>
                     <td>
                       <a href=""><button class="btn btn-outline-primary btn-sm" data-bs-toggle="tooltip"
                         data-bs-placement="top" data-bs-custom-class="custom-tooltip-primary"

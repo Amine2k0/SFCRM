@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect,get_object_or_404,HttpResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import connection
 from .models import Ticket,Agent,Client
 from .forms import AddTicketform,EditTicketform,RegisterForm,LoginForm
 from django.contrib.admin.views.decorators import staff_member_required
@@ -54,7 +55,55 @@ def register_user(request):
 @login_required
 def home(request):
     if request.user.is_superuser:
-        return render(request,"home.html")
+        with connection.cursor() as cursor:
+
+            query1 = """
+            SELECT count(*)/(SELECT COUNT(*) FROM `crm_ticket`)*100
+            FROM `crm_ticket`
+            WHERE Status='Closed';
+            """
+            query2 ="""SELECT count(*)
+            FROM crm_ticket
+            WHERE Agent_id is not null and Date > '2024-5-8 00:00:00' ;
+            """
+            query3 ="""SELECT count(*)
+            FROM crm_ticket
+            WHERE Status='Closed' ;
+            """
+            query4 ="""SELECT count(*)
+            FROM crm_ticket
+            WHERE Status='Open' ;
+            """
+            query5 ="""SELECT count(*)
+            FROM crm_ticket
+            WHERE Status='Solved' ;
+            """
+            query6 ="""SELECT count(*)
+            FROM crm_ticket
+            WHERE Status='Pending' ;
+            """
+            cursor.execute(query1)
+            completed =round(cursor.fetchone()[0],1)
+            cursor.execute(query2)
+            assigned = cursor.fetchone()[0]
+            cursor.execute(query3)
+            Closed = cursor.fetchone()[0]
+            cursor.execute(query4)
+            Open = cursor.fetchone()[0]
+            cursor.execute(query5)
+            Solved = cursor.fetchone()[0]
+            cursor.execute(query6)
+            Pending = cursor.fetchone()[0]
+    
+        context = {
+            'closed_ticket_percentage': completed,
+            'assigned_ticket_percentage': assigned,
+            'closed':Closed,
+            'open':Open,
+            'solved':Solved,
+            'pending':Pending,
+        }
+        return render(request,"home.html",context)  
             
     else:
         
@@ -92,10 +141,6 @@ def AddTicket(request):
     if request.method == 'POST':
         form = AddTicketform(request.POST)
         if form.is_valid():
-            # form.Client.id = request.user
-            # form.Agent.id = agent[0]  
-            # form.Status = 'Open'  
-            # form.save()
             ticket = form.save(commit=False)
             ticket.Client = client
             ticket.Agent = agent[0]
@@ -133,11 +178,10 @@ def EditTicket(request,id):
 def DeleteTicket(request,id):
     instance = get_object_or_404(Ticket, pk=id)
     
-    if request.method == 'POST':
-        instance.delete()
-        return redirect('ticket')
-    
+    instance.delete()
     return redirect('ticket')
+    
+    
 
 
 
