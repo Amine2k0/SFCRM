@@ -1,0 +1,16 @@
+# Normalise line endings across platforms.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.svg binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+
+# Third-party theme assets: exclude from GitHub's language statistics so the
+# repository is reported as the Python project it is.
+CRM/static/vendor/**  linguist-vendored
+CRM/static/css/bootstrap/**  linguist-vendored
+CRM/static/css/main.min.css  linguist-vendored
+CRM/static/js/moment.min.js  linguist-vendored
+CRM/static/fonts/**  linguist-vendored
