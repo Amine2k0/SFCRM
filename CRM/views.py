@@ -1,12 +1,21 @@
-from django.shortcuts import render, redirect,get_object_or_404,HttpResponse
-from django.contrib.auth import authenticate, login, logout
+from datetime import timedelta
+
 from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.db import connection
-from .models import Ticket,Agent,Client
-from .forms import AddTicketform,EditTicketform,RegisterForm,LoginForm
 from django.contrib.admin.views.decorators import staff_member_required
-# Create your views here.
+from django.core.exceptions import PermissionDenied
+from django.db.models import Count
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+
+from .forms import AddTicketform, EditTicketform, LoginForm, RegisterForm
+from .models import Agent, Client, Ticket
+
+# Number of days the dashboard counts as "recent" when reporting assigned tickets.
+RECENT_WINDOW_DAYS = 30
+
+
 
 
 
@@ -54,61 +63,35 @@ def register_user(request):
 
 @login_required
 def home(request):
-    if request.user.is_superuser:
-        with connection.cursor() as cursor:
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only administrators can view the dashboard.")
 
-            query1 = """
-            SELECT count(*)/(SELECT COUNT(*) FROM `crm_ticket`)*100
-            FROM `crm_ticket`
-            WHERE Status='Closed';
-            """
-            query2 ="""SELECT count(*)
-            FROM crm_ticket
-            WHERE Agent_id is not null and Date > '2024-5-8 00:00:00' ;
-            """
-            query3 ="""SELECT count(*)
-            FROM crm_ticket
-            WHERE Status='Closed' ;
-            """
-            query4 ="""SELECT count(*)
-            FROM crm_ticket
-            WHERE Status='Open' ;
-            """
-            query5 ="""SELECT count(*)
-            FROM crm_ticket
-            WHERE Status='Solved' ;
-            """
-            query6 ="""SELECT count(*)
-            FROM crm_ticket
-            WHERE Status='Pending' ;
-            """
-            cursor.execute(query1)
-            completed =round(cursor.fetchone()[0],1)
-            cursor.execute(query2)
-            assigned = cursor.fetchone()[0]
-            cursor.execute(query3)
-            Closed = cursor.fetchone()[0]
-            cursor.execute(query4)
-            Open = cursor.fetchone()[0]
-            cursor.execute(query5)
-            Solved = cursor.fetchone()[0]
-            cursor.execute(query6)
-            Pending = cursor.fetchone()[0]
-    
-        context = {
-            'closed_ticket_percentage': completed,
-            'assigned_ticket_percentage': assigned,
-            'closed':Closed,
-            'open':Open,
-            'solved':Solved,
-            'pending':Pending,
-        }
-        return render(request,"home.html",context)  
-            
-    else:
-        
-        return HttpResponse('You dont have permission')
-    
+    # A single grouped query gives us the count for every status at once.
+    counts = dict(
+        Ticket.objects.values_list("Status")
+        .annotate(total=Count("id"))
+        .values_list("Status", "total")
+    )
+    total = sum(counts.values())
+    closed = counts.get("Closed", 0)
+
+    # Tickets routed to an agent in the last 30 days.
+    recent_cutoff = timezone.now() - timedelta(days=RECENT_WINDOW_DAYS)
+    assigned = Ticket.objects.filter(
+        Agent__isnull=False, Date__gte=recent_cutoff
+    ).count()
+
+    context = {
+        # Guard against division by zero when no tickets exist yet.
+        "closed_ticket_percentage": round(closed / total * 100, 1) if total else 0.0,
+        "assigned_ticket_percentage": assigned,
+        "closed": closed,
+        "open": counts.get("Open", 0),
+        "solved": counts.get("Solved", 0),
+        "pending": counts.get("Pending", 0),
+    }
+    return render(request, "home.html", context)
+
 
 @login_required
 def ticket(request):
@@ -125,36 +108,43 @@ def ticket(request):
 
 @login_required
 def user(request):
-    if request.user.is_superuser:   
-        agents=Agent.objects.all()
-        clients=Client.objects.all()
-        context={'Agents':agents,'Clients':clients}
-        return render(request,"user.html",context)
-    else:
-        return HttpResponse('You dont have permission')
-    
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only administrators can view the user directory.")
+
+    context = {"Agents": Agent.objects.all(), "Clients": Client.objects.all()}
+    return render(request, "user.html", context)
+
 
 @login_required
 def AddTicket(request):
-    agent=Agent.objects.filter(Dispo=True)
-    client=Client.objects.get(id=request.user.id)
-    if request.method == 'POST':
+    # Only clients open tickets; agents and admins have no Client record.
+    client = Client.objects.filter(pk=request.user.pk).first()
+    if client is None:
+        raise PermissionDenied("Only clients can open a support ticket.")
+
+    if request.method == "POST":
         form = AddTicketform(request.POST)
         if form.is_valid():
-            ticket = form.save(commit=False)
-            ticket.Client = client
-            ticket.Agent = agent[0]
-            ticket.Status = 'Open'
-            ticket.save()
-            return redirect('ticket')
-        else:
-            print(form.errors.as_data())
+            agent = Agent.objects.filter(Dispo=True).first()
+            if agent is None:
+                messages.error(
+                    request,
+                    "No support agent is available right now. Please try again later.",
+                )
+            else:
+                ticket = form.save(commit=False)
+                ticket.Client = client
+                ticket.Agent = agent
+                ticket.Status = "Open"
+                ticket.save()
+                return redirect("ticket")
     else:
         form = AddTicketform()
-    return render(request,'addticket.html', {'form': form})
 
-@staff_member_required
+    return render(request, "addticket.html", {"form": form})
+
 @login_required
+@staff_member_required
 def EditTicket(request,id):
       
     instance = get_object_or_404(Ticket, pk=id)
@@ -173,8 +163,8 @@ def EditTicket(request,id):
     context = {'form': form, 'ticket': instance} 
     return render(request, 'editticket.html',context)
 
-@staff_member_required
 @login_required
+@staff_member_required
 def DeleteTicket(request,id):
     instance = get_object_or_404(Ticket, pk=id)
     
