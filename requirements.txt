@@ -1,0 +1,13 @@
+# Core framework
+Django==5.2.6
+
+# Reads configuration from a local .env file
+python-dotenv==1.0.1
+
+# Serves static files in production/containers
+whitenoise==6.7.0
+
+# Database drivers — uncomment the one matching your DB_ENGINE.
+# SQLite (the default) needs no driver.
+# mysqlclient==2.2.4
+# psycopg[binary]==3.2.3
