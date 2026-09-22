@@ -32,6 +32,6 @@ CMD ["sh", "-c", "python manage.py migrate --noinput && \
     if [ \"$DJANGO_DEBUG\" = \"True\" ]; then \
       python manage.py runserver 0.0.0.0:8000; \
     else \
-      python manage.py collectstatic --noinput && \
-      gunicorn SFCRM.wsgi:application --bind 0.0.0.0:8000; \
+      DJANGO_STATIC_MANIFEST=True python manage.py collectstatic --noinput && \
+      DJANGO_STATIC_MANIFEST=True gunicorn SFCRM.wsgi:application --bind 0.0.0.0:8000; \
     fi"]

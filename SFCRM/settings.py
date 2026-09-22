@@ -7,10 +7,10 @@ friendly defaults. Copy .env.example to .env and adjust it for your machine.
 Reference: https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -141,9 +141,23 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Manifest storage fingerprints every asset so it can be cached forever, but it
+# refuses to serve anything that is not in the manifest collectstatic writes.
+# That is correct in production and wrong everywhere else: without it, a plain
+# `runserver` with DEBUG off, and the test suite, raise ValueError on any page
+# using {% static %}. Keep it opt-in, and turn it on where collectstatic runs.
+USE_STATIC_MANIFEST = env_bool("DJANGO_STATIC_MANIFEST", False)
+
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    "staticfiles": {
+        "BACKEND": (
+            "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            if USE_STATIC_MANIFEST
+            else "django.contrib.staticfiles.storage.StaticFilesStorage"
+        )
+    },
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
