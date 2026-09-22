@@ -1,19 +1,20 @@
 from django import forms
-from .models import Ticket,Client,Agent,CustomUser
 from django.contrib.auth.forms import UserCreationForm
+
+from .models import Agent, Client, Ticket
+
 
 class EditTicketform(forms.ModelForm):
     class Meta:
         model = Ticket
-        fields = ['Subject', 'Status']
-        
-    
+        fields = ["Subject", "Status"]
+
 
 class AddTicketform(forms.ModelForm):
     class Meta:
         model = Ticket
-        fields = ['Subject']  
-    
+        fields = ["Subject"]
+
 
 class RegisterForm(UserCreationForm):
     username = forms.CharField(
@@ -31,18 +32,18 @@ class RegisterForm(UserCreationForm):
         widget=forms.PasswordInput,
         strip=False,
     )
+
     class Meta:
-        model = Client 
-        fields = ['username','age','adress','password1','password2']        
+        model = Client
+        fields = ["username", "age", "adress", "password1", "password2"]
 
 
 class LoginForm(forms.Form):
-    username=forms.CharField()
-    password=forms.CharField(widget=forms.PasswordInput)
-    
+    username = forms.CharField()
+    password = forms.CharField(widget=forms.PasswordInput)
+
 
 class RegisterAForm(UserCreationForm):
     class Meta:
-        model = Agent 
-        fields = ['username','age','adress','password1','password2']  
-
+        model = Agent
+        fields = ["username", "age", "adress", "password1", "password2"]

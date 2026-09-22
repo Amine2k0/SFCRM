@@ -16,39 +16,40 @@ from .models import Agent, Client, Ticket
 RECENT_WINDOW_DAYS = 30
 
 
-
-
-
 def login_user(request):
     if request.method == "POST":
-        form=LoginForm(request.POST)
+        form = LoginForm(request.POST)
         if form.is_valid():
-            username=form.cleaned_data['username']
-            password=form.cleaned_data['password']
-            user=authenticate(request,username=username,password=password)
+            username = form.cleaned_data["username"]
+            password = form.cleaned_data["password"]
+            user = authenticate(request, username=username, password=password)
             if user is not None:
-                login(request,user)
+                login(request, user)
                 if user.is_superuser:
-                    return redirect('home')
-                return redirect('ticket')
+                    return redirect("home")
+                return redirect("ticket")
             else:
-                return render(request,'login.html',{'form':form,'error_message':'Invalid Login'})
+                return render(
+                    request, "login.html", {"form": form, "error_message": "Invalid Login"}
+                )
     else:
-        form=LoginForm()
-    return render(request,'login.html',{'form':form})
-    
+        form = LoginForm()
+    return render(request, "login.html", {"form": form})
+
+
 def logout_user(request):
     logout(request)
     messages.success(request, ("You were logged out."))
     return redirect("login")
+
 
 def register_user(request):
     if request.method == "POST":
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save()
-            username = form.cleaned_data['username']
-            password = form.cleaned_data['password1']
+            username = form.cleaned_data["username"]
+            password = form.cleaned_data["password1"]
             user = authenticate(username=username, password=password)
             login(request, user)
             messages.success(request, ("Registration successful."))
@@ -56,9 +57,13 @@ def register_user(request):
     else:
         form = RegisterForm()
 
-    return render(request, 'register.html', {
-        'form':form,
-    })
+    return render(
+        request,
+        "register.html",
+        {
+            "form": form,
+        },
+    )
 
 
 @login_required
@@ -77,9 +82,7 @@ def home(request):
 
     # Tickets routed to an agent in the last 30 days.
     recent_cutoff = timezone.now() - timedelta(days=RECENT_WINDOW_DAYS)
-    assigned = Ticket.objects.filter(
-        Agent__isnull=False, Date__gte=recent_cutoff
-    ).count()
+    assigned = Ticket.objects.filter(Agent__isnull=False, Date__gte=recent_cutoff).count()
 
     context = {
         # Guard against division by zero when no tickets exist yet.
@@ -104,7 +107,6 @@ def ticket(request):
         tickets = Ticket.objects.filter(Client=request.user.id)
 
     return render(request, "ticket.html", {"Tickets": tickets})
-
 
 
 @login_required
@@ -144,35 +146,31 @@ def add_ticket(request):
 
     return render(request, "addticket.html", {"form": form})
 
+
 @login_required
 @staff_member_required
-def edit_ticket(request,id):
-      
+def edit_ticket(request, id):
     instance = get_object_or_404(Ticket, pk=id)
-    
-    if request.method == 'POST':
-        form = EditTicketform(request.POST,instance=instance)  
+
+    if request.method == "POST":
+        form = EditTicketform(request.POST, instance=instance)
         if form.is_valid():
             ticket = form.save(commit=False)
-            ticket.Client=instance.Client  
-            ticket.Agent=instance.Agent
+            ticket.Client = instance.Client
+            ticket.Agent = instance.Agent
             ticket.save()
-            return redirect('ticket')
+            return redirect("ticket")
     else:
-        form = EditTicketform(instance=instance) 
-        
-    context = {'form': form, 'ticket': instance} 
-    return render(request, 'editticket.html',context)
+        form = EditTicketform(instance=instance)
+
+    context = {"form": form, "ticket": instance}
+    return render(request, "editticket.html", context)
+
 
 @login_required
 @staff_member_required
-def delete_ticket(request,id):
+def delete_ticket(request, id):
     instance = get_object_or_404(Ticket, pk=id)
-    
+
     instance.delete()
-    return redirect('ticket')
-    
-    
-
-
-
+    return redirect("ticket")

@@ -36,9 +36,7 @@ def make_agent(username, password="agentpass123", available=True):
 
 
 def make_admin(username="admin", password="adminpass123"):
-    return Client.objects.create_superuser(
-        username=username, password=password, age=0, adress=""
-    )
+    return Client.objects.create_superuser(username=username, password=password, age=0, adress="")
 
 
 def sign_in(username, password):
@@ -112,9 +110,7 @@ class AuthenticationTests(TestCase):
         for route in ["home", "ticket", "user", "addticket"]:
             with self.subTest(route=route):
                 response = self.client.get(reverse(route))
-                self.assertRedirects(
-                    response, f"{reverse('login')}?next={reverse(route)}"
-                )
+                self.assertRedirects(response, f"{reverse('login')}?next={reverse(route)}")
 
 
 class PermissionBoundaryTests(TestCase):
@@ -180,12 +176,16 @@ class TicketVisibilityTests(TestCase):
         cls.admin = make_admin()
 
         cls.alice_ticket = Ticket.objects.create(
-            Subject="Alice cannot print", Status="Open",
-            Client=cls.alice, Agent=cls.agent_one,
+            Subject="Alice cannot print",
+            Status="Open",
+            Client=cls.alice,
+            Agent=cls.agent_one,
         )
         cls.bob_ticket = Ticket.objects.create(
-            Subject="Bob cannot log in", Status="Open",
-            Client=cls.bob, Agent=cls.agent_two,
+            Subject="Bob cannot log in",
+            Status="Open",
+            Client=cls.bob,
+            Agent=cls.agent_two,
         )
 
     def test_a_client_sees_only_their_own_tickets(self):
@@ -238,8 +238,10 @@ class TicketLifecycleTests(TestCase):
 
     def test_agent_updates_a_ticket_status(self):
         ticket = Ticket.objects.create(
-            Subject="Screen flickers", Status="Open",
-            Client=self.customer, Agent=self.agent,
+            Subject="Screen flickers",
+            Status="Open",
+            Client=self.customer,
+            Agent=self.agent,
         )
         http = sign_in("agent1", "agentpass123")
         response = http.post(
@@ -251,8 +253,10 @@ class TicketLifecycleTests(TestCase):
 
     def test_editing_preserves_the_original_client_and_agent(self):
         ticket = Ticket.objects.create(
-            Subject="Screen flickers", Status="Open",
-            Client=self.customer, Agent=self.agent,
+            Subject="Screen flickers",
+            Status="Open",
+            Client=self.customer,
+            Agent=self.agent,
         )
         http = sign_in("agent1", "agentpass123")
         http.post(
@@ -265,13 +269,13 @@ class TicketLifecycleTests(TestCase):
 
     def test_agent_deletes_a_ticket(self):
         ticket = Ticket.objects.create(
-            Subject="Screen flickers", Status="Open",
-            Client=self.customer, Agent=self.agent,
+            Subject="Screen flickers",
+            Status="Open",
+            Client=self.customer,
+            Agent=self.agent,
         )
         http = sign_in("agent1", "agentpass123")
-        self.assertRedirects(
-            http.get(reverse("deleteticket", args=[ticket.id])), reverse("ticket")
-        )
+        self.assertRedirects(http.get(reverse("deleteticket", args=[ticket.id])), reverse("ticket"))
         self.assertFalse(Ticket.objects.filter(pk=ticket.id).exists())
 
     def test_editing_a_missing_ticket_is_a_404(self):
@@ -295,8 +299,10 @@ class DashboardMetricsTests(TestCase):
         for status, how_many in counts.items():
             for index in range(how_many):
                 Ticket.objects.create(
-                    Subject=f"{status} {index}", Status=status.capitalize(),
-                    Client=self.customer, Agent=self.agent,
+                    Subject=f"{status} {index}",
+                    Status=status.capitalize(),
+                    Client=self.customer,
+                    Agent=self.agent,
                 )
 
     def test_empty_database_does_not_divide_by_zero(self):
@@ -327,9 +333,7 @@ class DashboardMetricsTests(TestCase):
         # Age one ticket past the window. Date is auto_now_add, so update() is
         # the only way to move it.
         stale = Ticket.objects.first()
-        Ticket.objects.filter(pk=stale.pk).update(
-            Date=timezone.now() - timedelta(days=90)
-        )
+        Ticket.objects.filter(pk=stale.pk).update(Date=timezone.now() - timedelta(days=90))
         self.assertEqual(self.dashboard().context["assigned_ticket_percentage"], 1)
 
 
@@ -344,7 +348,9 @@ class ModelTests(TestCase):
 
     def test_ticket_records_its_creation_time(self):
         ticket = Ticket.objects.create(
-            Subject="x", Status="Open",
-            Client=make_client("alice"), Agent=make_agent("agent1"),
+            Subject="x",
+            Status="Open",
+            Client=make_client("alice"),
+            Agent=make_agent("agent1"),
         )
         self.assertIsNotNone(ticket.Date)
