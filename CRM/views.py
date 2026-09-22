@@ -1,9 +1,9 @@
 from datetime import timedelta
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
@@ -95,14 +95,15 @@ def home(request):
 
 @login_required
 def ticket(request):
+    """Scope the ticket list to what the signed-in role is allowed to see."""
     if request.user.is_superuser:
-        Tickets=Ticket.objects.all()
+        tickets = Ticket.objects.all()
     elif request.user.is_staff:
-        Tickets=Ticket.objects.filter(Agent=request.user.id)
+        tickets = Ticket.objects.filter(Agent=request.user.id)
     else:
-        Tickets=Ticket.objects.filter(Client=request.user.id)
-    context={'Tickets':Tickets}
-    return render(request,"ticket.html",context)
+        tickets = Ticket.objects.filter(Client=request.user.id)
+
+    return render(request, "ticket.html", {"Tickets": tickets})
 
 
 
@@ -116,7 +117,7 @@ def user(request):
 
 
 @login_required
-def AddTicket(request):
+def add_ticket(request):
     # Only clients open tickets; agents and admins have no Client record.
     client = Client.objects.filter(pk=request.user.pk).first()
     if client is None:
@@ -145,7 +146,7 @@ def AddTicket(request):
 
 @login_required
 @staff_member_required
-def EditTicket(request,id):
+def edit_ticket(request,id):
       
     instance = get_object_or_404(Ticket, pk=id)
     
@@ -165,7 +166,7 @@ def EditTicket(request,id):
 
 @login_required
 @staff_member_required
-def DeleteTicket(request,id):
+def delete_ticket(request,id):
     instance = get_object_or_404(Ticket, pk=id)
     
     instance.delete()
