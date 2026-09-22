@@ -4,6 +4,7 @@ A role-based customer support CRM built with Django. Clients open support ticket
 agents are assigned to resolve them, and administrators track resolution metrics
 from a dashboard.
 
+[![CI](https://github.com/Amine2k0/SFCRM/actions/workflows/ci.yml/badge.svg)](https://github.com/Amine2k0/SFCRM/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/django-5.2%20LTS-092E20.svg)](https://www.djangoproject.com/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -227,6 +228,7 @@ Every setting is read from the environment, with sensible development defaults.
 | `DJANGO_SECRET_KEY` | _(none)_ | Cryptographic signing key. **Required.** Generate a unique one per environment. |
 | `DJANGO_DEBUG` | `False` | Set to `True` for local development only. Never enable in production. |
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated list of hostnames the app will serve. |
+| `DJANGO_STATIC_MANIFEST` | `False` | Fingerprint static files for long-lived caching. Requires `collectstatic` to have run first, so leave it off for development and tests. |
 | `DB_ENGINE` | `django.db.backends.sqlite3` | Django database backend path. |
 | `DB_NAME` | `db.sqlite3` | Database name, or file path when using SQLite. |
 | `DB_USER` | _(empty)_ | Database user. Not used by SQLite. |
@@ -257,11 +259,14 @@ SFCRM/
 │   ├── urls.py              # Root URL configuration
 │   ├── asgi.py
 │   └── wsgi.py
+├── .github/workflows/       # CI: tests and linting
 ├── .env.example             # Template for your local .env
 ├── Dockerfile
 ├── compose.yaml
 ├── manage.py
-└── requirements.txt
+├── pyproject.toml           # Ruff configuration
+├── requirements.txt
+└── requirements-dev.txt     # Linting and CI tooling
 ```
 
 ### Routes
@@ -304,10 +309,24 @@ Agents are staff users, so they also have access to the Django admin.
 python manage.py test
 ```
 
+31 tests covering authentication, the permission boundaries between roles,
+ticket visibility scoping, the ticket lifecycle and the dashboard metrics.
+
+To run the linter as CI does:
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
+```
+
+Every push and pull request runs the suite against Python 3.11, 3.12 and 3.13.
+
 ---
 
 ## Roadmap
 
+- [x] Test suite and continuous integration
 - [ ] Search, filtering and pagination on the ticket list
 - [ ] Threaded comments between clients and agents on a ticket
 - [ ] Least-loaded agent assignment instead of first-available
