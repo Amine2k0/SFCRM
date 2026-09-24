@@ -5,15 +5,19 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
+from django.core.paginator import Paginator
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .forms import AddTicketform, EditTicketform, LoginForm, RegisterForm
-from .models import Agent, Client, Ticket
+from .models import Agent, Client, Ticket, TicketStatus
 
 # Number of days the dashboard counts as "recent" when reporting assigned tickets.
 RECENT_WINDOW_DAYS = 30
+
+# Tickets shown per page on the list view.
+TICKETS_PER_PAGE = 10
 
 
 def login_user(request):
@@ -98,7 +102,12 @@ def home(request):
 
 @login_required
 def ticket(request):
-    """Scope the ticket list to what the signed-in role is allowed to see."""
+    """List tickets, scoped to the signed-in role, then searched and filtered.
+
+    Role scoping happens first and the user cannot influence it. Every filter
+    below only ever narrows that queryset further, so no combination of query
+    parameters can widen what a role is allowed to see.
+    """
     if request.user.is_superuser:
         tickets = Ticket.objects.all()
     elif request.user.is_staff:
@@ -106,7 +115,44 @@ def ticket(request):
     else:
         tickets = Ticket.objects.filter(Client=request.user.id)
 
-    return render(request, "ticket.html", {"Tickets": tickets})
+    search = request.GET.get("q", "").strip()
+    if search:
+        tickets = tickets.filter(
+            Q(Subject__icontains=search)
+            | Q(Client__username__icontains=search)
+            | Q(Agent__username__icontains=search)
+        )
+
+    # Unrecognised values are ignored rather than rejected, so a hand-edited
+    # URL degrades to the unfiltered list instead of erroring.
+    status = request.GET.get("status", "")
+    if status in TicketStatus.values:
+        tickets = tickets.filter(Status=status)
+
+    urgent = request.GET.get("urgent", "")
+    if urgent in {"yes", "no"}:
+        tickets = tickets.filter(Urgent=(urgent == "yes"))
+
+    # One query for the page instead of two per row in the template.
+    tickets = tickets.select_related("Client", "Agent")
+
+    # get_page() clamps out-of-range and non-numeric pages instead of raising.
+    page = Paginator(tickets, TICKETS_PER_PAGE).get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "ticket.html",
+        {
+            # A Page is iterable, so the existing template loop is unchanged.
+            "Tickets": page,
+            "page_obj": page,
+            "search": search,
+            "status": status,
+            "urgent": urgent,
+            "status_choices": TicketStatus.choices,
+            "is_filtered": bool(search or status or urgent),
+        },
+    )
 
 
 @login_required

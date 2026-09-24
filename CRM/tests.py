@@ -12,7 +12,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Agent, Client, Ticket
+from .models import Agent, Client, Ticket, TicketStatus
 
 
 def make_client(username, password="clientpass123"):
@@ -354,3 +354,158 @@ class ModelTests(TestCase):
             Agent=make_agent("agent1"),
         )
         self.assertIsNotNone(ticket.Date)
+
+
+class TicketSearchFilterTests(TestCase):
+    """Filtering narrows the role-scoped queryset; it must never widen it."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.alice = make_client("alice")
+        cls.bob = make_client("bob")
+        cls.agent = make_agent("agent1")
+        make_admin()
+
+        cls.printer = Ticket.objects.create(
+            Subject="Printer jams constantly",
+            Status=TicketStatus.OPEN,
+            Urgent=True,
+            Client=cls.alice,
+            Agent=cls.agent,
+        )
+        cls.vpn = Ticket.objects.create(
+            Subject="VPN drops every hour",
+            Status=TicketStatus.CLOSED,
+            Urgent=False,
+            Client=cls.alice,
+            Agent=cls.agent,
+        )
+        cls.bob_laptop = Ticket.objects.create(
+            Subject="Laptop will not boot",
+            Status=TicketStatus.OPEN,
+            Urgent=True,
+            Client=cls.bob,
+            Agent=cls.agent,
+        )
+
+    def listing(self, user="admin", password="adminpass123", **params):
+        response = sign_in(user, password).get(reverse("ticket"), params)
+        self.assertEqual(response.status_code, 200)
+        return list(response.context["Tickets"])
+
+    def test_search_matches_the_subject(self):
+        self.assertEqual(self.listing(q="printer"), [self.printer])
+
+    def test_search_is_case_insensitive(self):
+        self.assertEqual(self.listing(q="PRINTER"), [self.printer])
+
+    def test_search_matches_the_client_username(self):
+        self.assertCountEqual(self.listing(q="bob"), [self.bob_laptop])
+
+    def test_search_with_no_match_returns_nothing(self):
+        self.assertEqual(self.listing(q="nonexistent-subject"), [])
+
+    def test_filter_by_status(self):
+        self.assertCountEqual(
+            self.listing(status=TicketStatus.OPEN), [self.printer, self.bob_laptop]
+        )
+        self.assertEqual(self.listing(status=TicketStatus.CLOSED), [self.vpn])
+
+    def test_filter_by_urgency(self):
+        self.assertCountEqual(self.listing(urgent="yes"), [self.printer, self.bob_laptop])
+        self.assertEqual(self.listing(urgent="no"), [self.vpn])
+
+    def test_filters_combine(self):
+        self.assertEqual(
+            self.listing(status=TicketStatus.OPEN, urgent="yes", q="printer"),
+            [self.printer],
+        )
+
+    def test_unknown_filter_values_are_ignored_not_errors(self):
+        # A hand-edited URL should degrade to the full list, not a 500.
+        self.assertCountEqual(
+            self.listing(status="Bogus", urgent="maybe"),
+            [self.printer, self.vpn, self.bob_laptop],
+        )
+
+    def test_a_client_cannot_search_past_their_own_tickets(self):
+        """The security property: filters narrow, they never widen."""
+        results = self.listing("alice", "clientpass123", q="laptop")
+        self.assertEqual(results, [])
+
+        everything = self.listing("alice", "clientpass123")
+        self.assertCountEqual(everything, [self.printer, self.vpn])
+
+    def test_an_agent_search_stays_within_their_queue(self):
+        other_agent = make_agent("agent2")
+        hidden = Ticket.objects.create(
+            Subject="Printer in the annex",
+            Status=TicketStatus.OPEN,
+            Client=self.bob,
+            Agent=other_agent,
+        )
+        results = self.listing("agent1", "agentpass123", q="printer")
+        self.assertEqual(results, [self.printer])
+        self.assertNotIn(hidden, results)
+
+    def test_the_filter_form_keeps_its_values(self):
+        response = sign_in("admin", "adminpass123").get(
+            reverse("ticket"), {"q": "printer", "status": TicketStatus.OPEN}
+        )
+        self.assertEqual(response.context["search"], "printer")
+        self.assertEqual(response.context["status"], TicketStatus.OPEN)
+        self.assertTrue(response.context["is_filtered"])
+
+    def test_an_unfiltered_list_is_not_marked_filtered(self):
+        response = sign_in("admin", "adminpass123").get(reverse("ticket"))
+        self.assertFalse(response.context["is_filtered"])
+
+
+class TicketPaginationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.customer = make_client("alice")
+        cls.agent = make_agent("agent1")
+        make_admin()
+        for index in range(25):
+            Ticket.objects.create(
+                Subject=f"Ticket {index:02d}",
+                Status=TicketStatus.OPEN,
+                Client=cls.customer,
+                Agent=cls.agent,
+            )
+
+    def page(self, **params):
+        return sign_in("admin", "adminpass123").get(reverse("ticket"), params).context["page_obj"]
+
+    def test_first_page_is_full_and_knows_the_total(self):
+        page = self.page()
+        self.assertEqual(len(page.object_list), 10)
+        self.assertEqual(page.paginator.count, 25)
+        self.assertEqual(page.paginator.num_pages, 3)
+
+    def test_last_page_holds_the_remainder(self):
+        self.assertEqual(len(self.page(page=3).object_list), 5)
+
+    def test_pages_do_not_overlap(self):
+        seen = []
+        for number in (1, 2, 3):
+            seen += [t.pk for t in self.page(page=number).object_list]
+        self.assertEqual(len(seen), len(set(seen)), "a ticket appeared on two pages")
+        self.assertEqual(len(seen), 25)
+
+    def test_out_of_range_page_falls_back_to_the_last(self):
+        self.assertEqual(self.page(page=999).number, 3)
+
+    def test_non_numeric_page_falls_back_to_the_first(self):
+        self.assertEqual(self.page(page="abc").number, 1)
+
+    def test_newest_tickets_come_first(self):
+        subjects = [t.Subject for t in self.page().object_list]
+        self.assertEqual(subjects, sorted(subjects, reverse=True))
+
+    def test_filters_apply_before_pagination(self):
+        Ticket.objects.filter(Subject__endswith="0").update(Status=TicketStatus.CLOSED)
+        page = self.page(status=TicketStatus.CLOSED)
+        self.assertEqual(page.paginator.count, 3)
+        self.assertEqual(page.paginator.num_pages, 1)
