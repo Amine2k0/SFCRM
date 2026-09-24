@@ -36,9 +36,10 @@ SFCRM models three kinds of users, each with a different view of the system.
 - Self-service registration and login
 - Open a support ticket with a subject line
 - Track the status of their own tickets — and only their own
+- Search and filter their ticket history
 
 **Agents**
-- See the queue of tickets assigned to them
+- See the queue of tickets assigned to them, searchable and filterable
 - Update a ticket's status and subject
 - Close or delete a resolved ticket
 - Toggle their own availability, which controls whether new tickets route to them
@@ -277,7 +278,7 @@ SFCRM/
 | `/login/` | `login` | Public |
 | `/register/` | `register` | Public — creates a Client |
 | `/logout/` | `logout` | Authenticated |
-| `/ticket/` | `ticket` | Authenticated — scoped to the user's role |
+| `/ticket/` | `ticket` | Authenticated — scoped to the user's role. Accepts `?q=`, `?status=`, `?urgent=` and `?page=` |
 | `/addticket/` | `addticket` | Clients |
 | `/editticket/<id>` | `editticket` | Agents and admins |
 | `/deleteticket/<id>` | `deleteticket` | Agents and admins |
@@ -309,8 +310,9 @@ Agents are staff users, so they also have access to the Django admin.
 python manage.py test
 ```
 
-31 tests covering authentication, the permission boundaries between roles,
-ticket visibility scoping, the ticket lifecycle and the dashboard metrics.
+50 tests covering authentication, the permission boundaries between roles,
+ticket visibility scoping, the ticket lifecycle, search and filtering,
+pagination and the dashboard metrics.
 
 To run the linter as CI does:
 
@@ -327,7 +329,7 @@ Every push and pull request runs the suite against Python 3.11, 3.12 and 3.13.
 ## Roadmap
 
 - [x] Test suite and continuous integration
-- [ ] Search, filtering and pagination on the ticket list
+- [x] Search, filtering and pagination on the ticket list
 - [ ] Threaded comments between clients and agents on a ticket
 - [ ] Least-loaded agent assignment instead of first-available
 - [ ] Email notifications on ticket status changes
